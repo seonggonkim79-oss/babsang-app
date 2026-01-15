@@ -6,19 +6,24 @@ import time
 
 st.set_page_config(page_title="밥상매치 MVP", layout="wide", page_icon="🍚")
 
+# 데이터 초기화
 if 'requests' not in st.session_state: st.session_state.requests = []
 if 'bids' not in st.session_state: st.session_state.bids = []
 if 'matches' not in st.session_state: st.session_state.matches = []
 
+# 자동 입찰 로직
 def generate_auto_bid(req_id, owner_name, vacancy_rate):
     offer = "20% 할인 + 특수부위" if vacancy_rate >= 0.7 else "음료수 1병 서비스"
     tag = "🔥파격제안" if vacancy_rate >= 0.7 else "일반제안"
     return {"bid_id": str(uuid.uuid4())[:8], "req_id": req_id, "owner_name": owner_name, "offer": offer, "tag": tag, "timestamp": datetime.datetime.now().strftime("%H:%M:%S")}
 
+# 사이드바
 with st.sidebar:
+    st.header("🍚 밥상매치")
     role = st.radio("역할 선택", ["👨‍👩‍👧‍👦 손님 (User)", "👨‍🍳 사장님 (Owner)", "📊 관리자 (Admin)"])
     if st.button("🔄 새로고침"): st.rerun()
 
+# 1. 손님 화면
 if role == "👨‍👩‍👧‍👦 손님 (User)":
     st.title("👨‍👩‍👧‍👦 오늘 뭐 드시나요?")
     with st.container(border=True):
@@ -35,21 +40,32 @@ if role == "👨‍👩‍👧‍👦 손님 (User)":
         st.write(f"내 요청 상태: {req['status']}")
         my_bids = [b for b in st.session_state.bids if b['req_id'] == req['id']]
         for b in my_bids:
-            if st.button(f"수락: {b['owner_name']} ({b['offer']})", key=b['bid_id']):
-                st.session_state.matches.append(b)
-                req['status'] = "매칭완료"
-                st.balloons(); st.toast("매칭 성공!"); st.rerun()
+            with st.container(border=True):
+                st.write(f"🎁 **{b['owner_name']}**: {b['offer']}")
+                if st.button("수락", key=b['bid_id']):
+                    st.session_state.matches.append(b)
+                    req['status'] = "매칭완료"
+                    st.balloons(); st.toast("매칭 성공!"); st.rerun()
 
+# 2. 사장님 화면
 elif role == "👨‍🍳 사장님 (Owner)":
     st.title("👨‍🍳 사장님 알림판")
     vacancy = st.slider("빈자리 비율", 0.0, 1.0, 0.8)
-    reqs = [r for r in st.session_state.requests if r['status'] in ["입찰대기"]]
-    for r in reqs:
-        st.write(f"🔔 {r['menu']} {r['people']}명 ({r['location']})")
-        if st.button("⚡ 제안 보내기", key=f"b_{r['id']}"):
-            st.session_state.bids.append(generate_auto_bid(r['id'], "내 식당", vacancy))
-            r['status'] = "제안도착"
-            st.toast("발송 완료!"); st.rerun()
+    if st.button("새로고침"): st.rerun()
+    
+    reqs = [r for r in st.session_state.requests if r['status'] == "입찰대기"]
+    if reqs:
+        for r in reqs:
+            with st.container(border=True):
+                st.write(f"🔔 {r['menu']} {r['people']}명 ({r['location']})")
+                if st.button("⚡ 제안 보내기", key=f"b_{r['id']}"):
+                    st.session_state.bids.append(generate_auto_bid(r['id'], "내 식당", vacancy))
+                    r['status'] = "제안도착"
+                    st.toast("발송 완료!"); st.rerun()
+    else:
+        st.write("대기 중인 호출이 없습니다.")
 
+# 3. 관리자 화면
 elif role == "📊 관리자 (Admin)":
+    st.title("📊 매출 현황")
     st.write("매칭 내역:", st.session_state.matches)
